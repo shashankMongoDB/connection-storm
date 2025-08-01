@@ -1287,12 +1287,21 @@ def start_periodic_tasks():
 # Application Shutdown
 # -------------------------------------------------------------------------
 
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    """Close MongoDB connection when the application shuts down"""
+# NOTE:
+# Flask’s `teardown_appcontext` fires after *every* request which was closing
+# the shared MongoClient from our singleton and breaking subsequent calls.
+# We therefore remove the per-request teardown and close the connection once
+# when the Python process actually terminates.
+
+import atexit
+
+@atexit.register
+def _close_mongo_on_exit() -> None:
+    """Close MongoDB connection exactly once when the app terminates."""
     try:
         mongo_manager.close()
-    except:
+    except Exception:
+        # Ignore any errors during shutdown
         pass
 
 # -------------------------------------------------------------------------
